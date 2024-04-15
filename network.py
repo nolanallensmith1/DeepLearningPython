@@ -18,6 +18,7 @@ import random
 
 # Third-party libraries
 import numpy as np
+import matplotlib.pyplot as plt
 
 class Network(object):
 
@@ -37,6 +38,7 @@ class Network(object):
         self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
         self.weights = [np.random.randn(y, x)
                         for x, y in zip(sizes[:-1], sizes[1:])]
+        self.first_incorrect_images = {i: None for i in range(10)}
 
     def feedforward(self, a):
         """Return the output of the network if ``a`` is input."""
@@ -44,8 +46,7 @@ class Network(object):
             a = sigmoid(np.dot(w, a)+b)
         return a
 
-    def SGD(self, training_data, epochs, mini_batch_size, eta,
-            test_data=None):
+    def SGD(self, training_data, epochs, mini_batch_size, eta, test_data=None):
         """Train the neural network using mini-batch stochastic
         gradient descent.  The ``training_data`` is a list of tuples
         ``(x, y)`` representing the training inputs and the desired
@@ -64,15 +65,38 @@ class Network(object):
 
         for j in range(epochs):
             random.shuffle(training_data)
-            mini_batches = [
-                training_data[k:k+mini_batch_size]
-                for k in range(0, n, mini_batch_size)]
+            mini_batches = [training_data[k:k + mini_batch_size] for k in range(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
                 self.update_mini_batch(mini_batch, eta)
+            
             if test_data:
-                print("Epoch {} : {} / {}".format(j,self.evaluate(test_data),n_test))
+                print("Epoch {} : {} / {}".format(j, self.evaluate(test_data), n_test))
+                print("Class accuracies:")
+                class_accuracies = self.evaluate_class(test_data)
+                for i, acc in enumerate(class_accuracies):
+                    print("Class {}: {} / {}".format(i, acc, n_test))
             else:
                 print("Epoch {} complete".format(j))
+
+            # Record the first incorrectly classified image for each class
+            for x, y in test_data:
+                prediction = np.argmax(self.feedforward(x))
+                if prediction != y and self.first_incorrect_images[y] is None:
+                    self.first_incorrect_images[y] = x  # Only save incorrectly classified images
+
+    def evaluate_class(self, test_data):
+        class_counts = [0] * 10
+        class_correct = [0] * 10
+
+        for x, y in test_data:
+            prediction = np.argmax(self.feedforward(x))
+            class_counts[prediction] += 1
+            if prediction == y:
+                class_correct[y] += 1
+
+        class_accuracies = [correct / count if count > 0 else 0 for count, correct in zip(class_counts, class_correct)]
+        return class_accuracies
+
 
     def update_mini_batch(self, mini_batch, eta):
         """Update the network's weights and biases by applying
