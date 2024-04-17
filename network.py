@@ -1,24 +1,13 @@
-# %load network.py
+# network.py
 
-"""
-network.py
-~~~~~~~~~~
-IT WORKS
-
-A module to implement the stochastic gradient descent learning
-algorithm for a feedforward neural network.  Gradients are calculated
-using backpropagation.  Note that I have focused on making the code
-simple, easily readable, and easily modifiable.  It is not optimized,
-and omits many desirable features.
-"""
-
-#### Libraries
-# Standard library
 import random
-
-# Third-party libraries
 import numpy as np
 import matplotlib.pyplot as plt
+
+def cost_derivative(output_activations, y):
+    """Return the vector of partial derivatives \partial C_x /
+    \partial a for the output activations."""
+    return (output_activations - y)
 
 class Network(object):
 
@@ -38,15 +27,15 @@ class Network(object):
         self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
         self.weights = [np.random.randn(y, x)
                         for x, y in zip(sizes[:-1], sizes[1:])]
-        self.first_incorrect_images = {i: None for i in range(10)}
 
     def feedforward(self, a):
         """Return the output of the network if ``a`` is input."""
         for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.dot(w, a)+b)
+            a = sigmoid(np.dot(w, a) + b)
         return a
 
-    def SGD(self, training_data, epochs, mini_batch_size, eta, test_data=None):
+    def SGD(self, training_data, epochs, mini_batch_size, eta,
+            test_data=None):
         """Train the neural network using mini-batch stochastic
         gradient descent.  The ``training_data`` is a list of tuples
         ``(x, y)`` representing the training inputs and the desired
@@ -65,54 +54,53 @@ class Network(object):
 
         for j in range(epochs):
             random.shuffle(training_data)
-            mini_batches = [training_data[k:k + mini_batch_size] for k in range(0, n, mini_batch_size)]
+            mini_batches = [
+                training_data[k:k + mini_batch_size]
+                for k in range(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
                 self.update_mini_batch(mini_batch, eta)
-            
             if test_data:
-                print("Epoch {} : {} / {}".format(j, self.evaluate(test_data), n_test))
-                print("Class accuracies:")
-                class_accuracies = self.evaluate_class(test_data)
-                for i, acc in enumerate(class_accuracies):
-                    print("Class {}: {} / {}".format(i, acc, n_test))
+                self.evaluate_and_report(j, test_data, n_test)
             else:
                 print("Epoch {} complete".format(j))
 
-            # Record the first incorrectly classified image for each class
-            for x, y in test_data:
-                prediction = np.argmax(self.feedforward(x))
-                if prediction != y and self.first_incorrect_images[y] is None:
-                    self.first_incorrect_images[y] = x  # Only save incorrectly classified images
-
-
-
-        first_incorrect_images = self.first_incorrect_images  # Access attribute using self
-        
-        _, axes = plt.subplots(nrows=1, ncols=10, figsize=(20, 4))
+    def evaluate_and_report(self, epoch, test_data, n_test):
+        """Evaluate the network on test data and report progress."""
+        test_results = [(np.argmax(self.feedforward(x)), y)
+                        for (x, y) in test_data]
+        num_correct = sum(int(x == y) for (x, y) in test_results)
+        print("Epoch {}: {} / {}".format(epoch, num_correct, n_test))
+        # Count of correct and incorrect classifications for each class
+        class_correct = [0] * 10
+        class_total = [0] * 10
+        # Store the first incorrectly classified image for each class
+        first_incorrect = [None] * 10
+        for (x, y) in test_data:
+            prediction = np.argmax(self.feedforward(x))
+            actual = y
+            if prediction == actual:
+                class_correct[actual] += 1
+            else:
+                if first_incorrect[actual] is None:
+                    first_incorrect[actual] = (x, prediction, actual)
+            class_total[actual] += 1
+        # Output class-wise results
         for i in range(10):
-            incorrect_image = first_incorrect_images[i]
-            if incorrect_image is not None:
-                prediction = np.argmax(self.feedforward(incorrect_image))
-                axes[i].imshow(incorrect_image.reshape(28, 28), cmap='gray')
-                axes[i].set_title(f"Class: {i}\nPredicted: {prediction}")
+            incorrect = class_total[i] - class_correct[i]
+            print("class {}: {}/{}".format(i, incorrect, class_total[i]))
+        
+        # Output first incorrectly classified images
+        print("First incorrectly classified images:")
+        fig, axes = plt.subplots(nrows=1, ncols=10, figsize=(20, 4))
+        for i, (x, pred, actual) in enumerate(first_incorrect):
+            if x is not None:
+                axes[i].imshow(x.reshape(28, 28), cmap='gray')
+                axes[i].set_title(f"Class: {actual}\nPredicted: {pred}")
             else:
                 axes[i].axis('off')
-
-        plt.savefig('allTen.png')
-
-    def evaluate_class(self, test_data):
-        class_counts = [0] * 10
-        class_correct = [0] * 10
-
-        for x, y in test_data:
-            prediction = np.argmax(self.feedforward(x))
-            class_counts[prediction] += 1
-            if prediction == y:
-                class_correct[y] += 1
-
-        class_accuracies = [correct / count if count > 0 else 0 for count, correct in zip(class_counts, class_correct)]
-        return class_accuracies
-
+        plt.tight_layout()
+        plt.savefig("allTen.png")
+        
 
     def update_mini_batch(self, mini_batch, eta):
         """Update the network's weights and biases by applying
@@ -123,11 +111,11 @@ class Network(object):
         nabla_w = [np.zeros(w.shape) for w in self.weights]
         for x, y in mini_batch:
             delta_nabla_b, delta_nabla_w = self.backprop(x, y)
-            nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
-            nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
-        self.weights = [w-(eta/len(mini_batch))*nw
+            nabla_b = [nb + dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
+            nabla_w = [nw + dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
+        self.weights = [w - (eta / len(mini_batch)) * nw
                         for w, nw in zip(self.weights, nabla_w)]
-        self.biases = [b-(eta/len(mini_batch))*nb
+        self.biases = [b - (eta / len(mini_batch)) * nb
                        for b, nb in zip(self.biases, nabla_b)]
 
     def backprop(self, x, y):
@@ -139,31 +127,24 @@ class Network(object):
         nabla_w = [np.zeros(w.shape) for w in self.weights]
         # feedforward
         activation = x
-        activations = [x] # list to store all the activations, layer by layer
-        zs = [] # list to store all the z vectors, layer by layer
+        activations = [x]  # list to store all the activations, layer by layer
+        zs = []  # list to store all the z vectors, layer by layer
         for b, w in zip(self.biases, self.weights):
-            z = np.dot(w, activation)+b
+            z = np.dot(w, activation) + b
             zs.append(z)
             activation = sigmoid(z)
             activations.append(activation)
         # backward pass
-        delta = self.cost_derivative(activations[-1], y) * \
-            sigmoid_prime(zs[-1])
+        delta = cost_derivative(activations[-1], y) * sigmoid_prime(zs[-1])
         nabla_b[-1] = delta
         nabla_w[-1] = np.dot(delta, activations[-2].transpose())
-        # Note that the variable l in the loop below is used a little
-        # differently to the notation in Chapter 2 of the book.  Here,
-        # l = 1 means the last layer of neurons, l = 2 is the
-        # second-last layer, and so on.  It's a renumbering of the
-        # scheme in the book, used here to take advantage of the fact
-        # that Python can use negative indices in lists.
         for l in range(2, self.num_layers):
             z = zs[-l]
             sp = sigmoid_prime(z)
-            delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
+            delta = np.dot(self.weights[-l + 1].transpose(), delta) * sp
             nabla_b[-l] = delta
-            nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
-        return (nabla_b, nabla_w)
+            nabla_w[-l] = np.dot(delta, activations[-l - 1].transpose())
+        return nabla_b, nabla_w
 
     def evaluate(self, test_data):
         """Return the number of test inputs for which the neural
@@ -174,16 +155,11 @@ class Network(object):
                         for (x, y) in test_data]
         return sum(int(x == y) for (x, y) in test_results)
 
-    def cost_derivative(self, output_activations, y):
-        """Return the vector of partial derivatives \partial C_x /
-        \partial a for the output activations."""
-        return (output_activations-y)
-
 #### Miscellaneous functions
 def sigmoid(z):
     """The sigmoid function."""
-    return 1.0/(1.0+np.exp(-z))
+    return 1.0 / (1.0 + np.exp(-z))
 
 def sigmoid_prime(z):
     """Derivative of the sigmoid function."""
-    return sigmoid(z)*(1-sigmoid(z))
+    return sigmoid(z) * (1 - sigmoid(z))
