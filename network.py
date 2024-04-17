@@ -84,6 +84,22 @@ class Network(object):
                 if prediction != y and self.first_incorrect_images[y] is None:
                     self.first_incorrect_images[y] = x  # Only save incorrectly classified images
 
+
+
+        first_incorrect_images = self.first_incorrect_images  # Access attribute using self
+        
+        _, axes = plt.subplots(nrows=1, ncols=10, figsize=(20, 4))
+        for i in range(10):
+            incorrect_image = first_incorrect_images[i]
+            if incorrect_image is not None:
+                prediction = np.argmax(self.feedforward(incorrect_image))
+                axes[i].imshow(incorrect_image.reshape(28, 28), cmap='gray')
+                axes[i].set_title(f"Class: {i}\nPredicted: {prediction}")
+            else:
+                axes[i].axis('off')
+
+        plt.savefig('allTen.png')
+
     def evaluate_class(self, test_data):
         class_counts = [0] * 10
         class_correct = [0] * 10
